@@ -20,6 +20,7 @@ app.get("/api/games", async (c) => {
   const genre = c.req.query("genre");
   const platform = c.req.query("platform");
   const store = c.req.query("store");
+  const priority = c.req.query("priority");
   const search = c.req.query("q");
 
   let query = "SELECT * FROM games WHERE 1=1";
@@ -43,6 +44,11 @@ app.get("/api/games", async (c) => {
   if (store) {
     query += " AND store = ?";
     params.push(store);
+  }
+
+  if (priority) {
+    query += " AND priority = ?";
+    params.push(priority);
   }
 
   if (search) {
@@ -86,10 +92,13 @@ app.post("/api/games", async (c) => {
     platform?: string;
     store?: string;
     status?: string;
+    priority?: string;
     rating?: number;
     review?: string;
     image_url?: string;
     played_hours?: number;
+    started_at?: string;
+    finished_at?: string;
   }>();
 
   // Validation
@@ -114,6 +123,15 @@ app.post("/api/games", async (c) => {
     }, 400);
   }
 
+  // Validate priority
+  const validPriority = ["low", "medium", "high"];
+  const priority = body.priority || "medium";
+  if (!validPriority.includes(priority)) {
+    return c.json({ 
+      error: "priority must be: low, medium, high" 
+    }, 400);
+  }
+
   // Validate rating
   if (body.rating !== undefined && (body.rating < 1 || body.rating > 5)) {
     return c.json({ error: "rating must be between 1 and 5" }, 400);
@@ -134,10 +152,13 @@ app.post("/api/games", async (c) => {
     platform: body.platform.trim(),
     store: body.store?.trim() ?? null,
     status,
+    priority,
     rating: body.rating ?? null,
     review: body.review ?? null,
     image_url: body.image_url ?? null,
     played_hours: body.played_hours ?? 0,
+    started_at: body.started_at ?? null,
+    finished_at: body.finished_at ?? null,
     created_at: now,
     updated_at: now,
   };
@@ -145,8 +166,9 @@ app.post("/api/games", async (c) => {
   await c.env.DB
     .prepare(`
       INSERT INTO games 
-      (id, title, genre, platform, store, status, rating, review, image_url, played_hours, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, title, genre, platform, store, status, priority, rating, review, 
+       image_url, played_hours, started_at, finished_at, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     .bind(
       game.id,
@@ -155,10 +177,13 @@ app.post("/api/games", async (c) => {
       game.platform,
       game.store,
       game.status,
+      game.priority,
       game.rating,
       game.review,
       game.image_url,
       game.played_hours,
+      game.started_at,
+      game.finished_at,
       game.created_at,
       game.updated_at
     )
@@ -176,10 +201,13 @@ app.patch("/api/games/:id", async (c) => {
     platform?: string;
     store?: string;
     status?: string;
+    priority?: string;
     rating?: number;
     review?: string;
     image_url?: string;
     played_hours?: number;
+    started_at?: string;
+    finished_at?: string;
   }>();
 
   // Check if game exists
@@ -236,6 +264,17 @@ app.patch("/api/games/:id", async (c) => {
     values.push(body.status);
   }
 
+  if (body.priority !== undefined) {
+    const validPriority = ["low", "medium", "high"];
+    if (!validPriority.includes(body.priority)) {
+      return c.json({ 
+        error: "priority must be: low, medium, high" 
+      }, 400);
+    }
+    updates.push("priority = ?");
+    values.push(body.priority);
+  }
+
   if (body.rating !== undefined) {
     if (body.rating !== null && (body.rating < 1 || body.rating > 5)) {
       return c.json({ error: "rating must be between 1 and 5" }, 400);
@@ -260,6 +299,16 @@ app.patch("/api/games/:id", async (c) => {
     }
     updates.push("played_hours = ?");
     values.push(body.played_hours);
+  }
+
+  if (body.started_at !== undefined) {
+    updates.push("started_at = ?");
+    values.push(body.started_at || null);
+  }
+
+  if (body.finished_at !== undefined) {
+    updates.push("finished_at = ?");
+    values.push(body.finished_at || null);
   }
 
   if (updates.length === 0) {

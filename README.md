@@ -1,1 +1,2 @@
-# 6631503124-week03
+# 6631503124-Jutatip Sriputhon
+Mini-Prolect: Game Collection

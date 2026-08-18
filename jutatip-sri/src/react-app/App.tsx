@@ -7,10 +7,13 @@ interface Game {
   platform: string;
   store: string | null;
   status: "want_to_play" | "playing" | "completed" | "dropped";
+  priority: "low" | "medium" | "high" | null;
   rating: number | null;
   review: string | null;
   image_url: string | null;
   played_hours: number;
+  started_at: string | null;
+  finished_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -46,6 +49,23 @@ const getStoreIcon = (store: string | null) => {
   return "📦";
 };
 
+// Priority config
+const PRIORITY_CONFIG: Record<string, { label: string; icon: string; color: string }> = {
+  low: { label: "Low", icon: "🟢", color: "#4CAF50" },
+  medium: { label: "Medium", icon: "🟡", color: "#FFC107" },
+  high: { label: "High", icon: "🔴", color: "#F44336" },
+};
+
+// Calculate duration between two dates
+const calculateDuration = (start: string | null, end: string | null) => {
+  if (!start || !end) return null;
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  const diffTime = endDate.getTime() - startDate.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
+};
+
 function App() {
   const [games, setGames] = useState<Game[]>([]);
   const [form, setForm] = useState({
@@ -54,9 +74,12 @@ function App() {
     platform: "",
     store: "",
     status: "want_to_play" as Game["status"],
+    priority: "medium" as "low" | "medium" | "high",
     rating: "",
     review: "",
     played_hours: "",
+    started_at: "",
+    finished_at: "",
   });
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("");
@@ -69,9 +92,12 @@ function App() {
     platform: "",
     store: "",
     status: "want_to_play" as Game["status"],
+    priority: "medium" as "low" | "medium" | "high",
     rating: "",
     review: "",
     played_hours: "",
+    started_at: "",
+    finished_at: "",
   });
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
@@ -107,9 +133,12 @@ function App() {
           platform: form.platform,
           store: form.store || undefined,
           status: form.status,
+          priority: form.priority,
           rating: form.rating ? parseInt(form.rating) : undefined,
           review: form.review || undefined,
           played_hours: form.played_hours ? parseInt(form.played_hours) : 0,
+          started_at: form.started_at || undefined,
+          finished_at: form.finished_at || undefined,
         }),
       });
 
@@ -120,9 +149,12 @@ function App() {
           platform: "",
           store: "",
           status: "want_to_play",
+          priority: "medium",
           rating: "",
           review: "",
           played_hours: "",
+          started_at: "",
+          finished_at: "",
         });
         await loadGames(filter || undefined);
       } else {
@@ -167,9 +199,12 @@ function App() {
       platform: game.platform,
       store: game.store || "",
       status: game.status,
+      priority: game.priority || "medium",
       rating: game.rating?.toString() || "",
       review: game.review || "",
       played_hours: game.played_hours?.toString() || "",
+      started_at: game.started_at || "",
+      finished_at: game.finished_at || "",
     });
     setIsEditModalOpen(true);
   };
@@ -193,9 +228,12 @@ function App() {
           platform: editForm.platform,
           store: editForm.store || undefined,
           status: editForm.status,
+          priority: editForm.priority,
           rating: editForm.rating ? parseInt(editForm.rating) : null,
           review: editForm.review || undefined,
           played_hours: editForm.played_hours ? parseInt(editForm.played_hours) : 0,
+          started_at: editForm.started_at || undefined,
+          finished_at: editForm.finished_at || undefined,
         }),
       });
 
@@ -258,7 +296,6 @@ function App() {
     <div style={styles.page}>
       <FontLoader />
       <div style={styles.container}>
-        {/* Header */}
         <header style={styles.header}>
           <div style={styles.eyebrow}>MY_LIBRARY.SAV</div>
           <h1 style={styles.title}>Game Collection</h1>
@@ -360,6 +397,17 @@ function App() {
                 ))}
               </select>
             </Field>
+            <Field label="Priority">
+              <select
+                value={form.priority}
+                onChange={(e) => setForm({ ...form, priority: e.target.value as "low" | "medium" | "high" })}
+                style={styles.input}
+              >
+                <option value="low">🟢 Low</option>
+                <option value="medium">🟡 Medium</option>
+                <option value="high">🔴 High</option>
+              </select>
+            </Field>
             <Field label="Rating (1–5)">
               <input
                 type="number"
@@ -379,6 +427,22 @@ function App() {
                 onChange={(e) => setForm({ ...form, played_hours: e.target.value })}
                 style={{ ...styles.input, fontFamily: "'JetBrains Mono', monospace" }}
                 min="0"
+              />
+            </Field>
+            <Field label="Date Started">
+              <input
+                type="date"
+                value={form.started_at}
+                onChange={(e) => setForm({ ...form, started_at: e.target.value })}
+                style={styles.input}
+              />
+            </Field>
+            <Field label="Date Finished">
+              <input
+                type="date"
+                value={form.finished_at}
+                onChange={(e) => setForm({ ...form, finished_at: e.target.value })}
+                style={styles.input}
               />
             </Field>
             <div style={{ gridColumn: "1 / -1" }}>
@@ -410,6 +474,8 @@ function App() {
           <div style={styles.list}>
             {games.map((game) => {
               const s = STATUS[game.status];
+              const duration = calculateDuration(game.started_at, game.finished_at);
+              const priorityInfo = game.priority ? PRIORITY_CONFIG[game.priority] : null;
               return (
                 <div key={game.id} className="game-card" style={styles.card(s.color)}>
                   <div style={styles.cardBody}>
@@ -428,9 +494,16 @@ function App() {
                           )}
                         </div>
                       </div>
-                      <span style={styles.statusTag(s)}>
-                        {s.icon} {s.label}
-                      </span>
+                      <div style={styles.badgeGroup}>
+                        {priorityInfo && (
+                          <span style={{ ...styles.priorityBadge, color: priorityInfo.color }}>
+                            {priorityInfo.icon} {priorityInfo.label}
+                          </span>
+                        )}
+                        <span style={styles.statusTag(s)}>
+                          {s.icon} {s.label}
+                        </span>
+                      </div>
                     </div>
 
                     <div style={styles.cardMid}>
@@ -444,6 +517,21 @@ function App() {
                           <span style={styles.mono}>{game.played_hours}h</span> played
                         </span>
                       ) : null}
+                      {game.started_at && (
+                        <span style={styles.statPill}>
+                          🎮 Started: {new Date(game.started_at).toLocaleDateString('th-TH')}
+                        </span>
+                      )}
+                      {game.finished_at && (
+                        <span style={styles.statPill}>
+                          ✅ Finished: {new Date(game.finished_at).toLocaleDateString('th-TH')}
+                        </span>
+                      )}
+                      {duration !== null && duration > 0 && (
+                        <span style={styles.statPill}>
+                          ⏱️ {duration} days
+                        </span>
+                      )}
                     </div>
 
                     {game.review && (
@@ -553,6 +641,17 @@ function App() {
                     ))}
                   </select>
                 </Field>
+                <Field label="Priority">
+                  <select
+                    value={editForm.priority}
+                    onChange={(e) => setEditForm({ ...editForm, priority: e.target.value as "low" | "medium" | "high" })}
+                    style={styles.input}
+                  >
+                    <option value="low">🟢 Low</option>
+                    <option value="medium">🟡 Medium</option>
+                    <option value="high">🔴 High</option>
+                  </select>
+                </Field>
                 <Field label="Rating (1-5)">
                   <input
                     type="number"
@@ -569,6 +668,22 @@ function App() {
                     min="0"
                     value={editForm.played_hours}
                     onChange={(e) => setEditForm({ ...editForm, played_hours: e.target.value })}
+                    style={styles.input}
+                  />
+                </Field>
+                <Field label="Date Started">
+                  <input
+                    type="date"
+                    value={editForm.started_at}
+                    onChange={(e) => setEditForm({ ...editForm, started_at: e.target.value })}
+                    style={styles.input}
+                  />
+                </Field>
+                <Field label="Date Finished">
+                  <input
+                    type="date"
+                    value={editForm.finished_at}
+                    onChange={(e) => setEditForm({ ...editForm, finished_at: e.target.value })}
                     style={styles.input}
                   />
                 </Field>
@@ -1049,6 +1164,22 @@ const styles: Record<string, any> = {
     display: "inline-flex",
     alignItems: "center",
     gap: "4px",
+  },
+  priorityBadge: {
+    fontSize: "11px",
+    fontWeight: 600,
+    padding: "2px 10px",
+    borderRadius: "12px",
+    background: "#1A1B3A",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "4px",
+  },
+  badgeGroup: {
+    display: "flex",
+    gap: "8px",
+    alignItems: "center",
+    flexWrap: "wrap",
   },
   statusTag: (s: StatusMeta) => ({
     fontFamily: "'JetBrains Mono', monospace",
