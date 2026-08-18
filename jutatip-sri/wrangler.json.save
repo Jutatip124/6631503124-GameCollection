@@ -1,6 +1,12 @@
 {
+  "$schema": "node_modules/wrangler/config-schema.json",
+game-collection-api  "name": "game-collection-api",  // 
+  "main": "./src/worker/index.ts",
+  ...
+}
+{
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "game-api",
+	"name": "jutatip-sri",
 	"main": "./src/worker/index.ts",
 	"compatibility_date": "2025-10-08",
 	"compatibility_flags": [
